@@ -2,7 +2,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Check, QrCode, Edit2, Shield, Eye, EyeOff, Snowflake, Settings } from "lucide-react";
+import { X, Check, QrCode, Edit2, Snowflake, Settings, Save } from "lucide-react";
 import { useState, useEffect } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
@@ -17,9 +17,12 @@ interface ActionDrawerProps {
   onAddGoal?: (goal: any) => void;
   user?: any;
   userData?: any;
-  // NEW PROPS FOR CARD CONTROL
   isFrozen?: boolean;
   onToggleFreeze?: () => void;
+  // NEW PROPS
+  currentSpent?: number;
+  monthlyLimit?: number;
+  onUpdateLimit?: (newLimit: number) => void;
 }
 
 const avatars = [
@@ -35,12 +38,19 @@ const avatars = [
   { id: "fire", emoji: "🔥", bg: "bg-gradient-to-tr from-red-500 to-orange-600" },
 ];
 
-export default function ActionDrawer({ isOpen, type, onClose, onLogout, onAddGoal, user, userData, isFrozen, onToggleFreeze }: ActionDrawerProps) {
+export default function ActionDrawer({ 
+  isOpen, type, onClose, onLogout, onAddGoal, user, userData, 
+  isFrozen, onToggleFreeze, currentSpent = 0, monthlyLimit = 20000, onUpdateLimit 
+}: ActionDrawerProps) {
+  
   const [step, setStep] = useState("input");
   const [goalName, setGoalName] = useState("");
   const [goalTarget, setGoalTarget] = useState("");
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
-  const [showCVV, setShowCVV] = useState(false); // Local state for CVV
+  
+  // LIMIT EDITING STATE
+  const [isEditingLimit, setIsEditingLimit] = useState(false);
+  const [limitInput, setLimitInput] = useState("");
 
   useEffect(() => {
     if (isOpen) {
@@ -48,7 +58,7 @@ export default function ActionDrawer({ isOpen, type, onClose, onLogout, onAddGoa
         setGoalName("");
         setGoalTarget("");
         setIsEditingAvatar(false);
-        setShowCVV(false);
+        setIsEditingLimit(false);
     }
   }, [isOpen]);
 
@@ -76,19 +86,30 @@ export default function ActionDrawer({ isOpen, type, onClose, onLogout, onAddGoa
     setIsEditingAvatar(false);
   };
 
+  const saveLimit = () => {
+      if (onUpdateLimit && limitInput) {
+          onUpdateLimit(parseFloat(limitInput));
+          setIsEditingLimit(false);
+      }
+  };
+
   const getTitle = () => {
     switch (type) {
       case "send": return "Send Money";
       case "pay": return "Scan & Pay";
       case "profile": return "My Profile";
       case "add-goal": return "New Savings Goal";
-      case "more": return "Card Controls"; // NEW TITLE
+      case "more": return "Card Controls";
       default: return "Options";
     }
   };
 
   const currentAvatarId = userData?.avatarId || "default";
   const currentAvatar = avatars.find(a => a.id === currentAvatarId) || avatars[0];
+
+  // Calculate Progress for Limit
+  const progressPercent = Math.min((currentSpent / monthlyLimit) * 100, 100);
+  const isOverLimit = currentSpent > monthlyLimit;
 
   return (
     <AnimatePresence>
@@ -136,7 +157,7 @@ export default function ActionDrawer({ isOpen, type, onClose, onLogout, onAddGoa
 
               {step === "input" && (
                 <>  
-                    {/* MORE MENU (CARD CONTROLS) */}
+                    {/* MORE MENU (UPDATED) */}
                     {type === "more" && (
                         <div className="space-y-4">
                             {/* Freeze Toggle */}
@@ -158,44 +179,60 @@ export default function ActionDrawer({ isOpen, type, onClose, onLogout, onAddGoa
                                 </button>
                             </div>
 
-                            {/* Reveal CVV */}
-                            <div className="flex items-center justify-between rounded-xl bg-gray-800 p-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-full bg-indigo-500/20 text-indigo-400">
-                                        <Shield size={20} />
+                            {/* Monthly Limit (EDITABLE & REAL) */}
+                            <div className="rounded-xl bg-gray-800 p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-2 rounded-full ${isOverLimit ? 'bg-red-500/20 text-red-400' : 'bg-orange-500/20 text-orange-400'}`}>
+                                            <Settings size={20} />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-white">Monthly Limit</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="font-bold text-white">Card Details</p>
-                                        <p className="text-xs text-gray-400">View CVV & Expiry</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <span className="font-mono text-white text-lg tracking-widest">
-                                        {showCVV ? "942" : "***"}
-                                    </span>
-                                    <button onClick={() => setShowCVV(!showCVV)} className="text-gray-400 hover:text-white">
-                                        {showCVV ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    <button 
+                                        onClick={() => {
+                                            if (isEditingLimit) saveLimit();
+                                            else {
+                                                setLimitInput(monthlyLimit.toString());
+                                                setIsEditingLimit(true);
+                                            }
+                                        }}
+                                        className="text-indigo-400 hover:text-white p-2"
+                                    >
+                                        {isEditingLimit ? <Save size={18} /> : <Edit2 size={16} />}
                                     </button>
                                 </div>
-                            </div>
 
-                            {/* Monthly Limit (Visual) */}
-                            <div className="rounded-xl bg-gray-800 p-4">
-                                <div className="flex items-center gap-3 mb-3">
-                                    <div className="p-2 rounded-full bg-orange-500/20 text-orange-400">
-                                        <Settings size={20} />
+                                {isEditingLimit ? (
+                                    <div className="mb-4">
+                                        <label className="text-xs text-gray-400">Set new limit</label>
+                                        <input 
+                                            type="number" 
+                                            value={limitInput}
+                                            onChange={(e) => setLimitInput(e.target.value)}
+                                            className="w-full bg-gray-900 text-white rounded-lg p-2 mt-1 border border-gray-700 focus:border-indigo-500 outline-none"
+                                            autoFocus
+                                        />
                                     </div>
-                                    <div>
-                                        <p className="font-bold text-white">Monthly Limit</p>
-                                    </div>
-                                </div>
-                                <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
-                                    <div className="h-full w-[70%] bg-gradient-to-r from-orange-500 to-red-500"></div>
-                                </div>
-                                <div className="flex justify-between mt-2 text-xs text-gray-400">
-                                    <span>Spent: ₹12,450</span>
-                                    <span>Limit: ₹20,000</span>
-                                </div>
+                                ) : (
+                                    <>
+                                        <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                                            <motion.div 
+                                                initial={{ width: 0 }}
+                                                animate={{ width: `${progressPercent}%` }}
+                                                className={`h-full ${isOverLimit ? 'bg-red-500' : 'bg-gradient-to-r from-orange-500 to-red-500'}`} 
+                                            />
+                                        </div>
+                                        <div className="flex justify-between mt-2 text-xs text-gray-400">
+                                            <span className={isOverLimit ? "text-red-400 font-bold" : ""}>Spent: ₹{currentSpent}</span>
+                                            <span>Limit: ₹{monthlyLimit}</span>
+                                        </div>
+                                        {isOverLimit && (
+                                            <p className="text-xs text-red-400 mt-2 font-medium">⚠️ Limit exceeded! Watch your spending.</p>
+                                        )}
+                                    </>
+                                )}
                             </div>
                         </div>
                     )}

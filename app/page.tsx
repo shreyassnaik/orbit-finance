@@ -53,7 +53,7 @@ export default function Home() {
   const [activeDrawer, setActiveDrawer] = useState<any>(null);
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [selectedGoal, setSelectedGoal] = useState<any>(null);
-  const [isCardFrozen, setIsCardFrozen] = useState(false); // Card Freeze State
+  const [isCardFrozen, setIsCardFrozen] = useState(false);
   
   const [showAddMoney, setShowAddMoney] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
@@ -92,6 +92,11 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
+  // --- HELPER: CALCULATE TOTAL SPENT ---
+  const currentSpent = transactions
+    .filter(t => !t.isIncome)
+    .reduce((acc, t) => acc + Math.abs(parseFloat(t.amount.replace(/[^0-9.-]+/g, ""))), 0);
+
   // --- ACTIONS ---
 
   const handleLogout = async () => {
@@ -103,12 +108,27 @@ export default function Home() {
     setIsDarkMode(!isDarkMode);
   };
 
+  // UPDATE MONTHLY LIMIT
+  const handleUpdateLimit = async (newLimit: number) => {
+    if (!user) return;
+    await updateDoc(doc(db, "users", user.uid), { monthlyLimit: newLimit });
+  };
+
   const handleAddTransaction = async (newTx: any) => {
     if (!user) return;
     await addDoc(collection(db, "users", user.uid, "transactions"), { ...newTx });
     const amountNum = parseFloat(newTx.amount.replace(/[^0-9.-]+/g,""));
     await updateDoc(doc(db, "users", user.uid), { balance: increment(amountNum) });
     setShowManualEntry(false);
+
+    // CHECK LIMIT ALERT (Logic: If New Total > Limit)
+    const limit = userData?.monthlyLimit || 20000;
+    if (currentSpent + amountNum > limit) {
+        // Simple Alert for demo - polite warning
+        setTimeout(() => {
+            alert(`⚠️ Heads up! You've exceeded your monthly limit of ₹${limit}.`);
+        }, 500);
+    }
   };
 
   const handleAddMoney = async (amount: number) => {
@@ -154,9 +174,7 @@ export default function Home() {
     setSelectedGoal(null);
   };
 
-  // MAIN ACTION HANDLER
   const handleAction = (type: string) => {
-    // 🛑 SECURITY CHECK
     if (type === "pay" && isCardFrozen) {
       alert("❌ Transaction Failed: Your card is frozen. Unfreeze it in the 'More' menu to continue.");
       return; 
@@ -255,8 +273,13 @@ export default function Home() {
                 onAddGoal={handleAddGoal}
                 user={user}
                 userData={userData}
+                
+                // CARD CONTROLS & LIMIT
                 isFrozen={isCardFrozen}
                 onToggleFreeze={() => setIsCardFrozen(!isCardFrozen)}
+                currentSpent={currentSpent}
+                monthlyLimit={userData?.monthlyLimit || 20000} // Default 20k
+                onUpdateLimit={handleUpdateLimit}
               />
 
               <ReceiptModal 
