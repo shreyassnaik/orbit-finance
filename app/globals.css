@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* LIGHT MODE (Default) */
+  --background: #f3f4f6; /* Light Gray */
+  --foreground: #111827; /* Near Black */
+  --card: #ffffff;
+  --card-foreground: #1f2937;
+}
+
+/* DARK MODE (When class="dark" is added) */
+.dark {
+  --background: #030712; /* Deep Blue/Black */
+  --foreground: #f8fafc; /* White-ish */
+  --card: #111827;
+  --card-foreground: #f8fafc;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  transition: background-color 0.3s ease, color 0.3s ease; /* Smooth transition */
+}
+
+/* Hide Scrollbar */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Utilities */
+.glass {
+    @apply bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border border-gray-200 dark:border-white/10;
+}
